@@ -101,9 +101,13 @@ relatorio
 ## 5. Métricas de avaliação (como pontuar)
 
 - **Qualidade do lote** (forma a nota principal):
-  `Q = 100 − 10·avg|Δnível|% − 5·avg|Δtemperatura|°C`
+  `Q = 100 − 10·avg|Δnível|% − 5·avg|Δtemperatura|°C − 15·mean|Δu_aquecedor|`
   contada **somente na fase AUTO**, com **janela de graça de 15 ticks** para o PID
   assentar após a partida manual (o ponto de partida do manual não pune a nota).
+  O último termo penaliza a **oscilação do atuador** (o "fiscal reclama que a
+  viscosidade está variando"): um controlador que fica alternando aquecedor entre
+  +100%/−100% acumula `mean|Δu| ≈ 1–1.5` e perde 15–23 pontos — assim **é preciso
+  estabilizar a temperatura de verdade** para chegar ao topo, não só mantê-la na média.
 - **Placar final**:
 
 | Qualidade | Título | Leitura para a nota |
@@ -118,7 +122,8 @@ relatorio
   se ainda em MANUAL após ~10 min. Estresse = 100 ⇒ Almoxarifado (mesmo com boa nota).
 - **POP-007**: exija o log de quantas vezes o aluno alterou o PID e a justificativa
   (rastreabilidade 21 CFR Part 11). "Alterações = 0" é um forte indício de que ele
-  não sintonizou.
+  não sintonizou. No painel Streamlit, **cada alteração de sintonia também é
+  registrada** (antes→depois) — mexe no slider, entra no POP-007.
 
 ---
 
@@ -128,14 +133,15 @@ Validado em **6 sementes** (eventos aleatórios), mesma partida manual:
 
 | Cenário | Qualidade | Título | Comentário |
 |---|---|---|---|
-| **Sem sintonia** (default) | **42 – 53** | Almoxarifado | Offset no nível + temperatura oscilando; não rejeita bem as perturbações |
-| **Boa sintonia** (item 3) | **93 – 94 (todas)** | Sucessor | Assenta em 65 % / 110 °C e rejeita os eventos |
+| **Sem sintonia** (default) | **27 – 39** | Almoxarifado | Offset no nível + temperatura oscilando (atuador bang-bang); não rejeita as perturbações |
+| **Só o nível afinado** (temp default) | **75 – 78** | Operador TITÃ aprovado | Nível 0.8–1 %; temperatura ainda oscila → penalidade de `mean|Δu|` segura a nota |
+| **Ambos afinados** (item 3) | **86 – 90** | Sucessor do Dr. Gustav | Assenta em 65 % / 110 °C com atuador suave e rejeita os eventos |
 
-Não há "sorte de semente": a boa sintonia passa em **todas** as sementes e a ruim
-falha em **todas**. Se algum aluno relatar nota ≥ 85 sem mexer no PID, verifique se
-elevou a carga (r/q) para um ponto facilitador — os eventos estão dimensionados
-para que o **inlet aberto segure o nível** e o **atuador bipolar segure a temperatura**:
-um PID bom usa isso; o ruim (lento/ sem I) não.
+Ou seja: **é preciso corrigir os DOIS loops** para chegar ao "Sucessor". Corrigir só o
+nível rende "Aprovado"; deixar tudo no default é "Almoxarifado". Não há "sorte de semente".
+
+Se algum aluno relatar nota ≥ 85 sem mexer no PID, verifique o `mean|Δu_aquecedor|`
+no CSV — se o aquecedor está oscilando (default), a nota não passaria de "Aprovado".
 
 ---
 

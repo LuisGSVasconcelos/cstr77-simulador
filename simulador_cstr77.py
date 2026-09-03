@@ -35,6 +35,7 @@ R_GAS = 8.314          # J/mol.K
 DT = 10.0              # s simulados por "tick"
 T_MAX_TICKS = 400      # ~67 min simulados
 GRACE_AUTO = 15        # ticks de AUTO sem contar IAE (deixa o PID assentar após o manual)
+W_VAR = 15             # peso da oscilação do atuador (mean|Δu_heat|) na qualidade
 
 # ----------------------- Parâmetros da planta -----------------------
 P = {
@@ -164,6 +165,9 @@ class CSTR77:
         self.eventos_ativos = {}                 # nome -> ticks restantes
         self.last_event = None                   # dedup: não repete o último evento
         self.iae_l = self.iae_t = 0.0            # brutos: %·s e °C·s (fase AUTO)
+        self.var_u = 0.0                     # oscilação do atuador (Σ|Δu_heat|, fase AUTO)
+        self._nq = 0                         # nº de ticks AUTO contados p/ qualidade
+        self._prev_uh = None
         self._qual_start = False                 # qualidade conta a partir do AUTO
         self._t_auto = 0
         self._grace = 0                          # conta regressiva de graça da IAE
@@ -258,6 +262,13 @@ class CSTR77:
             else:
                 self.iae_l += abs(e_l) * DT            # %·s
                 self.iae_t += abs(e_t) * DT            # °C·s
+                # custo da oscilação do atuador (fiscal: "viscosidade variando")
+                if self._prev_uh is None:
+                    self._prev_uh = u_heat_c
+                else:
+                    self.var_u += abs(u_heat_c - self._prev_uh)
+                    self._prev_uh = u_heat_c
+                self._nq += 1
         fora = (abs(e_l) > 10.0) or (abs(e_t) > 15.0)
         # graça de partida: só estressa por fora-da-banda após o tick 25
         incr = 3.0 if (fora and self.tick > 25) else (-1.0 if not fora else 0.0)
@@ -313,7 +324,8 @@ class CSTR77:
         t_run = max((self.tick - self._t_auto) * DT, 1.0)
         avg_l = self.iae_l / t_run          # média |erro nível| em %
         avg_t = self.iae_t / t_run          # média |erro temperatura| em °C
-        return max(0.0, round(100.0 - 10.0 * avg_l - 5.0 * avg_t, 2))
+        var_avg = self.var_u / max(self._nq, 1)   # média |Δu_heat| por tick
+        return max(0.0, round(100.0 - 10.0 * avg_l - 5.0 * avg_t - W_VAR * var_avg, 2))
 
     def medias(self):
         if not self._qual_start:
@@ -353,6 +365,7 @@ class CSTR77:
                 self._qual_start = True
                 self._t_auto = self.tick
                 self.iae_l = self.iae_t = 0.0
+                self.var_u = 0.0; self._nq = 0; self._prev_uh = None
                 self._grace = GRACE_AUTO
                 self.pid_l.reset(); self.pid_t.reset()
                 print("  → Modo AUTOMÁTICO (PID do Dr. Gustav). Sintonia agressiva; refine-a.")

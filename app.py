@@ -30,6 +30,8 @@ if "sim" not in S:
     S.log = []
     S.prev_modo = "MANUAL"
     S.n_ticks = 0
+    S.base_l = tuple(S.sim.pid_l.ganhos)   # linha de base p/ rastrear mudanças (POP-007)
+    S.base_t = tuple(S.sim.pid_t.ganhos)
 
 # ------------------------- funções auxiliares -------------------------
 def avancar(n):
@@ -82,8 +84,19 @@ with st.sidebar:
         kp_t = c1.number_input("Kp_", value=float(kt_p), step=0.01, format="%.3f")
         ki_t = c2.number_input("Ki_", value=float(kt_i), step=0.001, format="%.3f")
         kd_t = c3.number_input("Kd_", value=float(kt_d), step=0.01, format="%.3f")
-    S.sim.pid_l.kp, S.sim.pid_l.ki, S.sim.pid_l.kd = kp_l, ki_l, kd_l
-    S.sim.pid_t.kp, S.sim.pid_t.ki, S.sim.pid_t.kd = kp_t, ki_t, kd_t
+    novos_l = (kp_l, ki_l, kd_l)
+    novos_t = (kp_t, ki_t, kd_t)
+    # POP-007: registra cada mudança distinta de sintonia feita no painel
+    if S.base_l != novos_l:
+        S.sim.pop007.append({"tick": S.sim.tick, "alvo": "NÍVEL (painel)",
+                             "antes": list(S.base_l), "depois": list(novos_l)})
+        S.base_l = novos_l
+    if S.base_t != novos_t:
+        S.sim.pop007.append({"tick": S.sim.tick, "alvo": "TEMP (painel)",
+                             "antes": list(S.base_t), "depois": list(novos_t)})
+        S.base_t = novos_t
+    S.sim.pid_l.kp, S.sim.pid_l.ki, S.sim.pid_l.kd = novos_l
+    S.sim.pid_t.kp, S.sim.pid_t.ki, S.sim.pid_t.kd = novos_t
 
     st.markdown("---")
     if st.button("▶️ Avançar 1 tick (10 s)", width="stretch"):
@@ -96,6 +109,8 @@ with st.sidebar:
         with contextlib.redirect_stdout(io.StringIO()):
             S.sim = sim.CSTR77(semente="streamlit")
         S.log, S.prev_modo, S.n_ticks = [], "MANUAL", 0
+        S.base_l = tuple(S.sim.pid_l.ganhos)
+        S.base_t = tuple(S.sim.pid_t.ganhos)
         st.rerun()
 
 # --------------------------- área principal ---------------------------
