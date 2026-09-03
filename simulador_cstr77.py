@@ -72,11 +72,11 @@ EVENTOS = {
 def titulo_final(qual, stress_max):
     if stress_max >= 100.0:
         return "ALMOXARIFADO 📦 (Dr. Gustav te rebaixou!)"
-    if qual >= 90.0:
+    if qual >= 95.0:
         return "MÃO DE ANJO ⭐ (Placar de Sintonista)"
-    if qual >= 70.0:
+    if qual >= 85.0:
         return "SUCESSOR DO DR. GUSTAV 🏆"
-    if qual >= 40.0:
+    if qual >= 70.0:
         return "OPERADOR TITÃ APROVADO ✅"
     return "ALMOXARIFADO 📦"
 
