@@ -87,10 +87,14 @@ simulação e re-renderiza.
 
 ## Gamificação
 
-- **Qualidade do lote** por IAE (erro médio em `%` e `°C`) — medida **na fase AUTO**.
+- **Qualidade do lote** por IAE (erro médio em `%` e `°C`) — medida **na fase AUTO**,
+  com janela de graça inicial (15 ticks) para o PID assentar após a partida manual.
 - **Estresse do chefe** (0–100) com período de graça de partida.
 - **Eventos surpresa**: Queda da Matéria-Prima, Onda de Calor, Operador do Tanque,
-  Efeito Cafeteira e Greve dos Fornecedores.
+  Efeito Cafeteira, Greve dos Fornecedores e Falha do Refrigerante.
+  Perturbações dimensionadas para serem **rejeitáveis** pelo controle (abrir o inlet
+  segura o nível; o atuador bipolar segura a temperatura) — um PID ruim lento/ sem
+  integral não rejeita; um bom, sim.
 - **Placar**: Mão de Anjo ⭐ / Sucessor do Dr. Gustav 🏆 / Operador TITÃ aprovado ✅ / Almoxarifado 📦
 - **POP-007**: registrar toda alteração de PID (rastreabilidade 21 CFR Part 11).
 

@@ -34,6 +34,7 @@ except Exception:
 R_GAS = 8.314          # J/mol.K
 DT = 10.0              # s simulados por "tick"
 T_MAX_TICKS = 400      # ~67 min simulados
+GRACE_AUTO = 15        # ticks de AUTO sem contar IAE (deixa o PID assentar após o manual)
 
 # ----------------------- Parâmetros da planta -----------------------
 P = {
@@ -54,18 +55,18 @@ P = {
 V_MIN_THERM = 0.8                  # L: volume de imersão do aquecedor (evita V->0 explodir)
 
 EVENTOS = {
-    "queda":     dict(nome="QUEDA DA MATÉRIA-PRIMA", dur=35,
-                      msg="📉 A pressão da linha caiu: vazão de entrada -50%."),
-    "calor":     dict(nome="ONDA DE CALOR", dur=35,
-                      msg="🌡️ Água de torre quente: +15 °C na jaqueta."),
-    "tanque":    dict(nome="OPERADOR DO TANQUE", dur=25,
-                      msg="🚨 Alguém abriu a válvula de saída do reator (+40% de vazão)!"),
-    "cafeteira": dict(nome="EFEITO CAFETERIA", dur=25,
-                      msg="☕ Equipamento de alta potência na rede: alimentação 18 °C mais fria."),
-    "greve":     dict(nome="GREVE DOS FORNECEDORES", dur=45,
-                      msg="🛑 Greve dos fornecedores: a vazão de entrada diminui lentamente."),
-    "chiller":   dict(nome="FALHA DO REFRIGERANTE", dur=30,
-                      msg="🧊 Falha no chiller: perda temporária da refrigeração ativa."),
+    "queda":     dict(nome="QUEDA DA MATÉRIA-PRIMA", dur=40,
+                      msg="📉 A pressão da linha caiu: vazão de entrada -35%."),
+    "calor":     dict(nome="ONDA DE CALOR", dur=40,
+                      msg="🌡️ Água de torre quente: +18 °C na jaqueta."),
+    "tanque":    dict(nome="OPERADOR DO TANQUE", dur=30,
+                      msg="🚨 Alguém abriu a válvula de saída (+30% de vazão)!"),
+    "cafeteira": dict(nome="EFEITO CAFETERIA", dur=30,
+                      msg="☕ Equipamento de alta potência na rede: alimentação 20 °C mais fria."),
+    "greve":     dict(nome="GREVE DOS FORNECEDORES", dur=50,
+                      msg="🛑 Greve dos fornecedores: a vazão de entrada diminui lentamente (-35%)."),
+    "chiller":   dict(nome="FALHA DO REFRIGERANTE", dur=35,
+                      msg="🧊 Falha no chiller: perda temporária da refrigeração ativa (+12 °C na jaqueta)."),
 }
 
 # Títulos do placar (estilo do briefing)
@@ -159,12 +160,13 @@ class CSTR77:
         # e SEM integral -> offset visível no tanque integrador; temperatura com
         # excesso de ganho/integral -> oscila. A Fase 2 existe para corrigir isso.
         self.pid_l = PID(0.12, 0.0, 0.0)          # nível: saída [0,1], sem I -> offset
-        self.pid_t = PID(1.2, 0.20, 0.0, out_min=-1.0, out_max=1.0)  # temp: bipolar, agressivo
+        self.pid_t = PID(2.0, 0.8, 0.0, out_min=-1.0, out_max=1.0)  # temp: bipolar, oscila forte
         self.eventos_ativos = {}                 # nome -> ticks restantes
         self.last_event = None                   # dedup: não repete o último evento
         self.iae_l = self.iae_t = 0.0            # brutos: %·s e °C·s (fase AUTO)
         self._qual_start = False                 # qualidade conta a partir do AUTO
         self._t_auto = 0
+        self._grace = 0                          # conta regressiva de graça da IAE
         self.stress = 0.0
         self.stress_max = 0.0
         self.aviso_deadline = False
@@ -215,26 +217,29 @@ class CSTR77:
                 del self.eventos_ativos[ev]
                 continue
             if ev == "queda":
-                qf = 0.5
+                qf = 0.65
             elif ev == "calor":
-                dTc = 15.0
+                dTc = 18.0
             elif ev == "cafeteira":
-                dTi = -18.0
+                dTi = -20.0
             elif ev == "tanque":
-                u_out_eff = min(1.0, self.u_out + 0.4)
+                u_out_eff = min(1.0, self.u_out + 0.3)
             elif ev == "greve":
                 greve = 1.0   # rampa: qf cai gradualmente
             elif ev == "chiller":
-                chiller = 1   # perde a refrigeração ativa (aq não pode esfriar)
+                chiller = 1   # perde a refrigeração ativa (aq não pode esfriar) + jaqueta quente
         if greve:
-            # rampa lenta: cada tick 2% menos, até 50%
-            qf = max(0.50, qf - 0.015 * greve)
+            # rampa lenta: cada tick 1% menos, até 65%
+            qf = max(0.65, qf - 0.01 * greve)
         if chiller:
             u_heat_c = max(u_heat_c, 0.0)   # só aquece; sem capacidade de esfriar
-        # novo evento a partir do tick 40 (dedup: não repete o último)
+            dTc = max(dTc, 12.0)             # jaqueta mais quente
+        # novo evento a partir do tick 40 (1 por vez; sem repetir o último)
         if (self.tick >= 40 and not self.eventos_ativos
                 and random.random() < 0.06):
-            opcoes = [k for k in EVENTOS if k != self.last_event] or list(EVENTOS)
+            ativos = set(self.eventos_ativos)
+            proib = ativos | ({self.last_event} if self.last_event else set())
+            opcoes = [k for k in EVENTOS if k not in proib] or list(EVENTOS)
             nome = random.choice(opcoes)
             self.last_event = nome
             self.eventos_ativos[nome] = EVENTOS[nome]["dur"]
@@ -246,10 +251,13 @@ class CSTR77:
             qf=qf, dT_cool=dTc, dT_in=dTi)
         self.tick += 1
 
-        # ----- gamificação (qualidade conta na fase AUTO; estresse com graça)
+        # ----- gamificação (qualidade conta na fase AUTO, com graça de asserção)
         if self._qual_start:
-            self.iae_l += abs(e_l) * DT            # %·s
-            self.iae_t += abs(e_t) * DT            # °C·s
+            if self._grace > 0:
+                self._grace -= 1
+            else:
+                self.iae_l += abs(e_l) * DT            # %·s
+                self.iae_t += abs(e_t) * DT            # °C·s
         fora = (abs(e_l) > 10.0) or (abs(e_t) > 15.0)
         # graça de partida: só estressa por fora-da-banda após o tick 25
         incr = 3.0 if (fora and self.tick > 25) else (-1.0 if not fora else 0.0)
@@ -345,6 +353,7 @@ class CSTR77:
                 self._qual_start = True
                 self._t_auto = self.tick
                 self.iae_l = self.iae_t = 0.0
+                self._grace = GRACE_AUTO
                 self.pid_l.reset(); self.pid_t.reset()
                 print("  → Modo AUTOMÁTICO (PID do Dr. Gustav). Sintonia agressiva; refine-a.")
                 print("    pid N <Kp> <Ki> <Kd>  e  pid T <Kp> <Ki> <Kd>")
