@@ -140,8 +140,10 @@ Validado em **6 sementes** (eventos aleatórios), mesma partida manual:
 Ou seja: **é preciso corrigir os DOIS loops** para chegar ao "Sucessor". Corrigir só o
 nível rende "Aprovado"; deixar tudo no default é "Almoxarifado". Não há "sorte de semente".
 
-Se algum aluno relatar nota ≥ 85 sem mexer no PID, verifique o `mean|Δu_aquecedor|`
-no CSV — se o aquecedor está oscilando (default), a nota não passaria de "Aprovado".
+Se algum aluno relatar nota ≥ 85 sem mexer no PID, verifique a coluna
+**`oscilacao_heat`** no CSV exportado (é `|Δu_aquecedor|` por tick) — calcule a
+média dela na fase AUTO: acima de ~0.3 o aquecedor está oscilando (default), então
+a nota não passaria de "Aprovado". Boa sintonia de temperatura fica ~0.03–0.10.
 
 ---
 
