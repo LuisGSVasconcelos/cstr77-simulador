@@ -8,6 +8,10 @@ Projetado para sala de aula (Eng. Química / Automação): o aluno assume a oper
 planta do zero ao setpoint em modo manual e depois refina a sintonia PID para rejeitar perturbações,
 pontuando por **qualidade do lote (IAE)** e pelo **estresse do chefe (Dr. Gustav)**.
 
+> 👨‍🏫 Para o docente: veja `PROFESSOR.md` — o **gabarito** com a sintonia boa e a
+> justificativa física de cada ganho, roteiro passo a passo, rubrica de correção e
+> resultados validados (sem sintonia ≈ 42–53, boa sintonia ≈ 93–94).
+
 ## Instalação
 
 ```bash
