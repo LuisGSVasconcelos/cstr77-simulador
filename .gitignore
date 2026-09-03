@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Artefatos gerados na execução
+relatorio_cstr77.png
+relatorio_cstr77.csv
+
+# Scripts auxiliares locais
+_*.py
