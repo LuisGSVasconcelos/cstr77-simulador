@@ -28,6 +28,21 @@ Verificação rápida / gabarito automático (reproduzível pela semente):
 python simulador_cstr77.py --demo 7
 ```
 
+## Versão Streamlit (painel interativo)
+
+Uma interface gráfica reutiliza o mesmo núcleo numérico (`app.py`):
+
+```bash
+pip install streamlit plotly
+streamlit run app.py
+```
+
+Painel com sliders de válvula/aquecedor (manual), tuning de PID (nível e temperatura),
+botões de avanço (1 / 10 / 30 ticks), medidor de estresse, gráficos interativos
+(nível, temperatura, saídas de controle, qualidade/estresse) e relatório final
+com título e download em CSV. Sem loops bloqueantes — cada interação avança a
+simulação e re-renderiza.
+
 ## Comandos do jogo
 
 | Comando                 | Ação                                   |
