@@ -35,7 +35,7 @@ R_GAS = 8.314          # J/mol.K
 DT = 10.0              # s simulados por "tick"
 T_MAX_TICKS = 400      # ~67 min simulados
 GRACE_AUTO = 15        # ticks de AUTO sem contar IAE (deixa o PID assentar após o manual)
-W_VAR = 15             # peso da oscilação do atuador (mean|Δu_heat|) na qualidade
+W_VAR = 8              # peso da oscilação do atuador (mean|Δu_heat|) na qualidade
 
 # ----------------------- Parâmetros da planta -----------------------
 P = {
