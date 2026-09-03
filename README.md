@@ -62,12 +62,16 @@ simulação e re-renderiza.
 
 ## Roteiro de jogo sugerido
 
-1. `q 55`, `n 85`, `r 70` → enche e aquece no manual
-2. `esp 25` → observa nível/temperatura subirem
-3. `auto` → liga os PID (sintonia "do Dr. Gustav", ruins de propósito)
-4. `pid n 1.4 0.02 0.1` e `pid t 0.12 0.01 0.1` → retune
+1. **Encha** com a saída fechada: `q 0`, `n 95`, `r 70`; `esp 28`
+2. Abra a saída e equilibre: `q 55`, `n 55`, `r 90`; `esp 6`
+3. `auto` → liga os PID (sintonia do Dr. Gustav, **ruim de propósito**)
+4. Retune: `pid n 1.5 0.05 0.1` e `pid t 0.20 0.03 0.2`
 5. `esp 20` → deixa surgir os eventos surpresa
 6. `relatorio` → entrega o relatório
+
+> **Dica de partida**: a saída é uma **bomba de descarga constante** (o tanque é um
+> integrador). Se abrir a válvula de saída antes de encher, o enchimento fica lento —
+> encha com `q 0` e só depois abra a saída.
 
 ## Modelo físico
 
@@ -75,9 +79,11 @@ simulação e re-renderiza.
 - **Balanço molar** `N = C·V`, `dN/dt = q_in·C_A0 − q_out·C − r·V` (robusto para `V→0`).
 - **Energia**: aquecedor bipolar (aquecer/esfriar), reação exotérmica de 1ª ordem
   (`r = k₀·exp(−Ea/(R·T))·C`), remoção por alimentação e jaqueta.
-- **Escorvento de saída por gravidade**: `q_out = K·√h·u`.
+- **Escorvamento de saída por bomba de descarga constante**: `q_out = q_max·u`
+  (o tanque é um integrador puro; PID sem integral deixa offset — lição da Fase 2).
 - **Controle**: PID posicional com anti-windup e derivada filtrada sobre a medição;
-  saída bipolar de temperatura (`[-1,1]`).
+  saída bipolar de temperatura (`[-1,1]`). Sintonia default "do Dr. Gustav" ruim
+  de propósito (nível com ganho baixo sem `I` → offset; temperatura agressiva → oscila).
 
 ## Gamificação
 

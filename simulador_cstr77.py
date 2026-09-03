@@ -51,20 +51,21 @@ P = {
     "sp_level": 65.0,   # %
     "sp_temp": 110.0,   # °C
 }
-K_VALV   = P["q_max"]              # válvula de saída por gravidade: q = K*sqrt(h)*u
 V_MIN_THERM = 0.8                  # L: volume de imersão do aquecedor (evita V->0 explodir)
 
 EVENTOS = {
-    "queda":     dict(nome="QUEDA DA MATÉRIA-PRIMA", dur=30,
-                      msg="📉 A pressão da linha caiu: vazão de entrada -40%."),
-    "calor":     dict(nome="ONDA DE CALOR", dur=30,
-                      msg="🌡️ Água de torre quente: +12 °C na jaqueta."),
-    "tanque":    dict(nome="OPERADOR DO TANQUE", dur=20,
-                      msg="🚨 Alguém abriu a válvula de saída do reator!"),
-    "cafeteira": dict(nome="EFEITO CAFETERIA", dur=20,
-                      msg="☕ Equipamento de alta potência na rede: alimentação 15 °C mais fria."),
-    "greve":     dict(nome="GREVE DOS FORNECEDORES", dur=40,
+    "queda":     dict(nome="QUEDA DA MATÉRIA-PRIMA", dur=35,
+                      msg="📉 A pressão da linha caiu: vazão de entrada -50%."),
+    "calor":     dict(nome="ONDA DE CALOR", dur=35,
+                      msg="🌡️ Água de torre quente: +15 °C na jaqueta."),
+    "tanque":    dict(nome="OPERADOR DO TANQUE", dur=25,
+                      msg="🚨 Alguém abriu a válvula de saída do reator (+40% de vazão)!"),
+    "cafeteira": dict(nome="EFEITO CAFETERIA", dur=25,
+                      msg="☕ Equipamento de alta potência na rede: alimentação 18 °C mais fria."),
+    "greve":     dict(nome="GREVE DOS FORNECEDORES", dur=45,
                       msg="🛑 Greve dos fornecedores: a vazão de entrada diminui lentamente."),
+    "chiller":   dict(nome="FALHA DO REFRIGERANTE", dur=30,
+                      msg="🧊 Falha no chiller: perda temporária da refrigeração ativa."),
 }
 
 # Títulos do placar (estilo do briefing)
@@ -120,8 +121,10 @@ def passo_cstr(N, T, h, u_in, u_out, u_heat, p,
     """Avança o CSTR em DT. Estado molar (N = mols de A) evita divisão por
     volume ~0. u_in,u_out em [0,1]; u_heat em [-1,1]."""
     V = max(h * p["V_max"], 1e-9)
+    # vlv de saída = demanda CONSTANTE (bomba de descarga): tanque vira
+    # integrador puro -> PID P-only deixa offset real, precisa da ação integral.
     q_in = p["q_max"] * u_in * qf
-    q_out = min(K_VALV * (h ** 0.5) * u_out, V / DT + 1e-9)
+    q_out = min(p["q_max"] * u_out, V / DT + 1e-9)
 
     # ---- nível (volume)
     h_n = min(1.0, max(0.0, h + (q_in - q_out) * DT / p["V_max"]))
@@ -152,11 +155,13 @@ class CSTR77:
         self.tick = 0
         self.mode = "MANUAL"
         self.u_in = self.u_out = self.u_heat = 0.0
-        # Sintonia "do Dr. Gustav" (propositalmente ruim): nível sem I -> offset;
-        # temperatura agressiva -> oscila.
-        self.pid_l = PID(0.3, 0.0, 0.0)          # nível: erro em %, saída [0,1]
-        self.pid_t = PID(0.3, 0.02, 0.0, out_min=-1.0, out_max=1.0)  # temp: bipolar
+        # Sintonia "do Dr. Gustav" (propositalmente RUIM): nível com ganho baixo
+        # e SEM integral -> offset visível no tanque integrador; temperatura com
+        # excesso de ganho/integral -> oscila. A Fase 2 existe para corrigir isso.
+        self.pid_l = PID(0.12, 0.0, 0.0)          # nível: saída [0,1], sem I -> offset
+        self.pid_t = PID(1.2, 0.20, 0.0, out_min=-1.0, out_max=1.0)  # temp: bipolar, agressivo
         self.eventos_ativos = {}                 # nome -> ticks restantes
+        self.last_event = None                   # dedup: não repete o último evento
         self.iae_l = self.iae_t = 0.0            # brutos: %·s e °C·s (fase AUTO)
         self._qual_start = False                 # qualidade conta a partir do AUTO
         self._t_auto = 0
@@ -202,30 +207,36 @@ class CSTR77:
             u_heat_c = self.pid_t.update(P["sp_temp"], self.T, DT)
         else:
             u_in_c, u_heat_c = self.u_in, self.u_heat
-        # ----- perturbações (eventos)
-        qf = 1.0; dTc = 0.0; dTi = 0.0; u_out_eff = self.u_out; greve = 0.0
+        # ----- perturbações (eventos) — efeitos FORTES p/ exigirem robustez
+        qf = 1.0; dTc = 0.0; dTi = 0.0; u_out_eff = self.u_out; greve = 0.0; chiller = 0
         for ev in list(self.eventos_ativos):
             self.eventos_ativos[ev] -= 1
             if self.eventos_ativos[ev] <= 0:
                 del self.eventos_ativos[ev]
                 continue
             if ev == "queda":
-                qf = 0.6
+                qf = 0.5
             elif ev == "calor":
-                dTc = 12.0
+                dTc = 15.0
             elif ev == "cafeteira":
-                dTi = -15.0
+                dTi = -18.0
             elif ev == "tanque":
-                u_out_eff = min(1.0, self.u_out + 0.3)
+                u_out_eff = min(1.0, self.u_out + 0.4)
             elif ev == "greve":
                 greve = 1.0   # rampa: qf cai gradualmente
+            elif ev == "chiller":
+                chiller = 1   # perde a refrigeração ativa (aq não pode esfriar)
         if greve:
-            # rampa lenta: cada tick 2% menos, até 65%
-            qf = max(0.65, qf - 0.02 * greve)
-        # novo evento a partir do tick 40
+            # rampa lenta: cada tick 2% menos, até 50%
+            qf = max(0.50, qf - 0.015 * greve)
+        if chiller:
+            u_heat_c = max(u_heat_c, 0.0)   # só aquece; sem capacidade de esfriar
+        # novo evento a partir do tick 40 (dedup: não repete o último)
         if (self.tick >= 40 and not self.eventos_ativos
-                and random.random() < 0.05):
-            nome = random.choice(list(EVENTOS))
+                and random.random() < 0.06):
+            opcoes = [k for k in EVENTOS if k != self.last_event] or list(EVENTOS)
+            nome = random.choice(opcoes)
+            self.last_event = nome
             self.eventos_ativos[nome] = EVENTOS[nome]["dur"]
             self.marcos_eventos.append((self.tick, EVENTOS[nome]["nome"]))
             print("  ⚡ " + EVENTOS[nome]["msg"])
@@ -456,21 +467,21 @@ class CSTR77:
 # ------------------------- fluxo interativo / demo -------------------------
 def demo():
     """Execução de referência ('gabarito') para verificação do professor.
-    Joga bem: partida manual moderada, depois AUTO com boa sintonia."""
+    Joga bem: enche com saída fechada, abre/equilibra, AUTO com boa sintonia."""
     semente = int(sys.argv[2]) if len(sys.argv) > 2 else 7
     g = CSTR77(semente=semente)
-    # Fase 1: partida manual — enche e aquece sem exagerar
-    g.executar("q 55")
-    g.executar("n 85")
+    # Fase 1: partida manual — enche com a saída fechada (integrator)
+    g.executar("q 0")
+    g.executar("n 95")
     g.executar("r 70")
-    g.tick_step(25)                     # ~250 s
-    g.executar("r 90")
-    g.tick_step(10)
+    g.tick_step(28)                     # ~53% de nível
+    g.executar("q 55"); g.executar("n 55"); g.executar("r 90")
+    g.tick_step(6)
     g.executar("status")
     # Fase 2: automático + boa sintonia (gabarito)
     g.executar("auto")
-    g.executar("pid n 1.4 0.02 0.1")
-    g.executar("pid t 0.12 0.01 0.1")
+    g.executar("pid n 1.5 0.05 0.1")
+    g.executar("pid t 0.20 0.03 0.2")
     for _ in range(20):
         g.tick_step(5)
     # Fase 3: eventos surpresa
