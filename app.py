@@ -171,8 +171,11 @@ st.subheader("📋 Relatório final")
 if st.button("🏁 Gerar relatório (qualidade + título)"):
     titulo = sim.titulo_final(qual, S.sim.stress_max)
     avg_l, avg_t = S.sim.medias()
+    var_avg = S.sim.var_u / max(S.sim._nq, 1)
     st.success(f"**{titulo}**")
     st.write(f"- Qualidade: **{qual:.1f}**/100 (erro médio nível {avg_l:.2f} %, temp {avg_t:.2f} °C)")
+    st.write(f"- Oscilação do atuador: mean|Δu_aquecedor| = **{var_avg:.3f}** "
+             f"(pesa -{sim.W_VAR*var_avg:.1f} na qualidade)")
     st.write(f"- Estresse máximo: {S.sim.stress_max:.0f}/100  ·  Eventos: "
              f"{', '.join(n for _, n in S.sim.marcos_eventos) or 'nenhum'}")
     st.write(f"- Alterações de PID (POP-007): {len(S.sim.pop007)}")
@@ -181,14 +184,17 @@ if st.button("🏁 Gerar relatório (qualidade + título)"):
             st.write(f"  tick {r['tick']}: {r['alvo']} antes {r['antes']} → depois {r['depois']}")
 
 if S.sim.hist["t"]:
+    uh = S.sim.hist["u_heat"]
+    duh = [0.0] + [abs(uh[i] - uh[i - 1]) for i in range(1, len(uh))]
     rows = zip(S.sim.hist["t"], S.sim.hist["h"], S.sim.hist["T"], S.sim.hist["C"],
-               S.sim.hist["u_in"], S.sim.hist["u_out"], S.sim.hist["u_heat"],
+               S.sim.hist["u_in"], S.sim.hist["u_out"], S.sim.hist["u_heat"], duh,
                S.sim.hist["e_l"], S.sim.hist["e_t"], S.sim.hist["stress"],
                S.sim.hist["q"])
     csv_buf = io.StringIO()
     w = csv.writer(csv_buf)
     w.writerow(["t_s", "nivel_pct", "temp_C", "conc_molL", "u_entrada", "u_saida",
-                "u_aquecedor", "erro_nivel_pct", "erro_temp_C", "estresse", "qualidade"])
+                "u_aquecedor", "oscilacao_heat",
+                "erro_nivel_pct", "erro_temp_C", "estresse", "qualidade"])
     w.writerows(rows)
     st.download_button("⬇️ Baixar dados (CSV)", data=csv_buf.getvalue(),
                        file_name="relatorio_cstr77.csv", mime="text/csv",

@@ -424,15 +424,18 @@ class CSTR77:
 
         base = os.path.dirname(os.path.abspath(__file__))
         nome_csv = os.path.join(base, "relatorio_cstr77.csv")
+        uh = self.hist["u_heat"]
+        duh = [0.0] + [abs(uh[i] - uh[i - 1]) for i in range(1, len(uh))]
         with open(nome_csv, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
             w.writerow(["t_s", "nivel_pct", "temp_C", "conc_molL",
-                        "u_entrada", "u_saida", "u_aquecedor",
+                        "u_entrada", "u_saida", "u_aquecedor", "oscilacao_heat",
                         "erro_nivel_pct", "erro_temp_C", "estresse", "qualidade"])
             for i in range(len(self.hist["t"])):
                 w.writerow([self.hist["t"][i], self.hist["h"][i], self.hist["T"][i],
                             self.hist["C"][i], self.hist["u_in"][i], self.hist["u_out"][i],
-                            self.hist["u_heat"][i], self.hist["e_l"][i], self.hist["e_t"][i],
+                            self.hist["u_heat"][i], duh[i],
+                            self.hist["e_l"][i], self.hist["e_t"][i],
                             self.hist["stress"][i], self.hist["q"][i]])
 
         fig, ax = plt.subplots(2, 2, figsize=(12, 8))
@@ -475,6 +478,8 @@ class CSTR77:
         print("═" * 62)
         print(f"  Duração      : {self.tick*DT:.0f} s")
         print(f"  Erro médio   : nível {avg_l:.2f} %  |  temp {avg_t:.2f} °C")
+        var_avg = self.var_u / max(self._nq, 1)
+        print(f"  Oscilação    : mean|Δu_aquecedor| = {var_avg:.3f}  (pesa -{W_VAR*var_avg:.1f} na qualidade)")
         print(f"  Qualidade    : {qual:.1f}/100")
         print(f"  Estresse máx.: {self.stress_max:.0f}/100")
         print(f"  Eventos      : {', '.join(n for _, n in self.marcos_eventos) or 'nenhum'}")
