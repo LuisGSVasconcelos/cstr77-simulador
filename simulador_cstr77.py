@@ -189,6 +189,7 @@ class CSTR77:
         self._flag_overflow = False
         self._flag_empty = False
         self._nudge_stage = 0                 # 0/1/2/3 = quantos avisos do Gustav já saíram
+        self._game_over = False               # estresse 100 -> fim de jogo (para de avançar)
         self.pop007 = []                         # log de alterações de PID
         self.marcos_eventos = []                 # (tick, nome)
         self.hist = {k: [] for k in
@@ -295,8 +296,11 @@ class CSTR77:
         self.stress_max = max(self.stress_max, self.stress)
         if self.stress >= 100 and not self.alarme_grito:
             self.alarme_grito = True
+            self._game_over = True
             print("  📢 Dr. Gustav gritou pelo telefone: "
                   "'Vou te rebaixar para o almoxarifado!'")
+            print("  🛑 FIM DE JOGO — a simulação parou aqui. "
+                  "Use 'relatorio' para o balanço ou reinicie (não gira mais nada).")
 
         # ----- alarmes (sem spam: avisa uma vez por episódio)
         h_pct = self.h * 100
@@ -338,8 +342,14 @@ class CSTR77:
         self.hist["q"].append(self.qualidade())
 
     def tick_step(self, n=1):
+        if self._game_over:
+            print("  🛑 Fim de jogo — a simulação já terminou (Dr. Gustav te rebaixou). "
+                  "Use 'relatorio' para o balanço ou reinicie.")
+            return
         for _ in range(n):
             self._tick()
+            if self._game_over:
+                break
 
     def qualidade(self):
         if not self._qual_start:
@@ -373,6 +383,11 @@ class CSTR77:
         if not partes:
             return
         cmd = partes[0]
+        # fim de jogo: só relatório/estado/sair ainda valem
+        if self._game_over and cmd not in ("relatorio", "status", "pop", "sair"):
+            print("  🛑 Fim de jogo — Dr. Gustav te rebaixou. "
+                  "A simulação parou; use 'relatorio', 'status' ou 'sair'.")
+            return
         try:
             if cmd == "n" and self.mode == "MANUAL" and len(partes) > 1:
                 self.u_in = max(0.0, min(1.0, float(partes[1]) / 100.0))
@@ -503,7 +518,8 @@ class CSTR77:
         print(f"  Erro médio   : nível {avg_l:.2f} %  |  temp {avg_t:.2f} °C")
         var_avg = self.var_u / max(self._nq, 1)
         print(f"  Oscilação    : mean|Δu_aquecedor| = {var_avg:.3f}  (pesa -{W_VAR*var_avg:.1f} na qualidade)")
-        print(f"  Qualidade    : {qual:.1f}/100")
+        q_str = f"{qual:.1f}/100" if self._qual_start else "— (não chegou à fase AUTO)"
+        print(f"  Qualidade    : {q_str}")
         print(f"  Estresse máx.: {self.stress_max:.0f}/100")
         print(f"  Eventos      : {', '.join(n for _, n in self.marcos_eventos) or 'nenhum'}")
         print(f"  Alterações   : {len(self.pop007)} (POP-007)")

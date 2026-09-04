@@ -127,7 +127,11 @@ relatorio
 
 - **Estresse do chefe** (ferramenta de gestão): +3/tick fora da banda
   (`|Δnível| > 10 %` ou `|Δtemp| > 15 °C`) após o tick 25; −1/tick dentro; +1 extra
-  se ainda em MANUAL após ~10 min. Estresse = 100 ⇒ Almoxarifado (mesmo com boa nota).
+  se ainda em MANUAL após ~10 min. **Estresse = 100 ⇒ fim de jogo imediato**: a
+  simulação **para de avançar** (no Streamlit os botões de avanço desabilitam e
+  aparece um banner; no CLI nenhum comando de ação vale mais) e o título é
+  forçado a **Almoxarifado**. O aluno só pode gerar o relatório ou reiniciar —
+  evita continuar rodando "no escuro" com o reator vazio/parado.
 - **POP-007**: exija o log de quantas vezes o aluno alterou o PID e a justificativa
   (rastreabilidade 21 CFR Part 11). "Alterações = 0" é um forte indício de que ele
   não sintonizou. No painel Streamlit, **cada alteração de sintonia também é

@@ -99,12 +99,14 @@ with st.sidebar:
     S.sim.pid_t.kp, S.sim.pid_t.ki, S.sim.pid_t.kd = novos_t
 
     st.markdown("---")
-    if st.button("▶️ Avançar 1 tick (10 s)", width="stretch"):
+    fim = S.sim._game_over
+    if st.button("▶️ Avançar 1 tick (10 s)", width="stretch", disabled=fim):
         avancar(1); st.rerun()
-    if st.button("⏩ Avançar 10 ticks (100 s)", width="stretch"):
+    if st.button("⏩ Avançar 10 ticks (100 s)", width="stretch", disabled=fim):
         avancar(10); st.rerun()
-    if st.button("⏭️ Avançar 30 ticks (300 s)", width="stretch"):
+    if st.button("⏭️ Avançar 30 ticks (300 s)", width="stretch", disabled=fim):
         avancar(30); st.rerun()
+    st.caption("🛑 Fim de jogo = Dr. Gustav te rebaixou (estresse 100): simulação para.")
     if st.button("♻️ Reiniciar simulação", width="stretch"):
         with contextlib.redirect_stdout(io.StringIO()):
             S.sim = sim.CSTR77(semente="streamlit")
@@ -130,6 +132,11 @@ m4.metric("Qualidade do lote", f"{qual:.1f}")
 m5.metric("Título (atual)", "—")
 
 st.progress(int(S.sim.stress), text=f"Estresse do Dr. Gustav: {S.sim.stress:.0f}/100")
+
+if S.sim._game_over:
+    st.error("🛑 **FIM DE JOGO — Dr. Gustav te rebaixou para o almoxarifado.**\n\n"
+             "A simulação **parou** aqui (estresse chegou a 100). Gere o relatório "
+             "abaixo ou clique em *Reiniciar* para tentar de novo. Nada mais avança.")
 
 # ---- Nudges do Dr. Gustav (só em AUTO, se o aluno não tocou nos PIDs)
 if S.sim._qual_start and not S.sim.pop007 and S.sim._nudge_stage < len(sim.NUDGES):
@@ -181,7 +188,8 @@ if st.button("🏁 Gerar relatório (qualidade + título)"):
     avg_l, avg_t = S.sim.medias()
     var_avg = S.sim.var_u / max(S.sim._nq, 1)
     st.success(f"**{titulo}**")
-    st.write(f"- Qualidade: **{qual:.1f}**/100 (erro médio nível {avg_l:.2f} %, temp {avg_t:.2f} °C)")
+    q_str = f"{qual:.1f}" if S.sim._qual_start else "— (não chegou à fase AUTO)"
+    st.write(f"- Qualidade: **{q_str}**/100 (erro médio nível {avg_l:.2f} %, temp {avg_t:.2f} °C)")
     st.write(f"- Oscilação do atuador: mean|Δu_aquecedor| = **{var_avg:.3f}** "
              f"(pesa -{sim.W_VAR*var_avg:.1f} na qualidade)")
     st.write(f"- Estresse máximo: {S.sim.stress_max:.0f}/100  ·  Eventos: "
