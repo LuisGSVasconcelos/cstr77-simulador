@@ -131,8 +131,8 @@ m1, m2, m3, m4, m5 = st.columns(5)
 m1.metric("Nível", f"{S.sim.h*100:6.2f} %", f"{e_l:+.2f} vs 65%")
 m2.metric("Temperatura", f"{S.sim.T:6.2f} °C", f"{e_t:+.2f} vs 110°C")
 m3.metric("Cₐ", f"{S.sim.C:5.3f} mol/L")
-m4.metric("Qualidade do lote", f"{qual:.1f}")
-m5.metric("Título (atual)", "—")
+m4.metric("Qualidade do lote", f"{qual:.1f}" if S.sim._qual_start else "—")
+m5.metric("Título (atual)", sim.titulo_final(qual, S.sim.stress_max, S.sim._qual_start).split(" ", 1)[0] if S.sim._qual_start else "—")
 
 st.progress(int(S.sim.stress), text=f"Estresse do Dr. Gustav: {S.sim.stress:.0f}/100")
 
@@ -142,7 +142,7 @@ if S.sim._game_over:
              "abaixo ou clique em *Reiniciar* para tentar de novo. Nada mais avança.")
 
 # ---- Nudges do Dr. Gustav (só em AUTO, se o aluno não tocou nos PIDs)
-if S.sim._qual_start and not S.sim.pop007 and S.sim._nudge_stage < len(sim.NUDGES):
+if S.sim.mode == "AUTO" and not S.sim.pop007 and S.sim._nudge_stage < len(sim.NUDGES):
     tick_auto = S.sim.tick - S.sim._t_auto
     for i, (tg, _msg) in enumerate(sim.NUDGES):
         if S.sim._nudge_stage < i + 1 and tick_auto >= tg:
@@ -187,12 +187,12 @@ with col_left:
 st.markdown("---")
 st.subheader("📋 Relatório final")
 if st.button("🏁 Gerar relatório (qualidade + título)"):
-    titulo = sim.titulo_final(qual, S.sim.stress_max)
+    titulo = sim.titulo_final(qual, S.sim.stress_max, S.sim._qual_start)
     avg_l, avg_t = S.sim.medias()
     var_avg = S.sim.var_u / max(S.sim._nq, 1)
     st.success(f"**{titulo}**")
     st.write(f"- **Run ID (semente):** `{S.semente}`")
-    q_str = f"{qual:.1f}" if S.sim._qual_start else "— (não chegou à fase AUTO)"
+    q_str = f"{qual:.1f}" if S.sim._qual_start else "— (não esteve em banda / sem operação válida)"
     st.write(f"- Qualidade: **{q_str}**/100 (erro médio nível {avg_l:.2f} %, temp {avg_t:.2f} °C)")
     st.write(f"- Oscilação do atuador: mean|Δu_aquecedor| = **{var_avg:.3f}** "
              f"(pesa -{sim.W_VAR*var_avg:.1f} na qualidade)")

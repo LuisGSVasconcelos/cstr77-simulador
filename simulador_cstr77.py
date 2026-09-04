@@ -38,6 +38,9 @@ GRACE_AUTO = 15        # ticks de AUTO sem contar IAE (deixa o PID assentar apó
 W_VAR = 8              # peso da oscilação do atuador (mean|Δu_heat|) na qualidade
 
 # Nudges do Dr. Gustav: lembra o aluno de mexer no PID se ficou parado em AUTO
+# Banda "produtiva" (p/ pontuar qualidade): nível ±10 % e temp ±15 °C, em qualquer modo
+BAND_L = 10.0
+BAND_T = 15.0
 NUDGES = [
     (60,  "📞 Gustav: 'Tá olhando o quê, novato? Mexa nos PIDs! "
               "Use \033[1mpid n <Kp> <Ki> <Kd>\033[0m e \033[1mpid t ...\033[0m.'"),
@@ -81,7 +84,9 @@ EVENTOS = {
 }
 
 # Títulos do placar (estilo do briefing)
-def titulo_final(qual, stress_max):
+def titulo_final(qual, stress_max, operou=True):
+    if not operou:
+        return "NÃO ESTABILIZOU 📦 (ficou fora da banda o tempo todo — sem operação válida)"
     if stress_max >= 100.0:
         return "ALMOXARIFADO 📦 (Dr. Gustav te rebaixou!)"
     if qual >= 95.0:
@@ -174,11 +179,12 @@ class CSTR77:
         self.pid_t = PID(2.0, 0.8, 0.0, out_min=-1.0, out_max=1.0)  # temp: bipolar, oscila forte
         self.eventos_ativos = {}                 # nome -> ticks restantes
         self.last_event = None                   # dedup: não repete o último evento
-        self.iae_l = self.iae_t = 0.0            # brutos: %·s e °C·s (fase AUTO)
-        self.var_u = 0.0                     # oscilação do atuador (Σ|Δu_heat|, fase AUTO)
-        self._nq = 0                         # nº de ticks AUTO contados p/ qualidade
+        self.iae_l = self.iae_t = 0.0            # brutos: %·s e °C·s (fase produtiva - em banda)
+        self.var_u = 0.0                     # oscilação do atuador (Σ|Δu_heat|, fase produtiva)
+        self._nq = 0                         # nº de ticks produtivos (em banda) contados
         self._prev_uh = None
-        self._qual_start = False                 # qualidade conta a partir do AUTO
+        self._q_tick0 = None                 # tick do 1º momento em banda (início da janela)
+        self._qual_start = False                 # True após o 1º momento em banda
         self._t_auto = 0
         self._grace = 0                          # conta regressiva de graça da IAE
         self.stress = 0.0
@@ -269,20 +275,23 @@ class CSTR77:
             qf=qf, dT_cool=dTc, dT_in=dTi)
         self.tick += 1
 
-        # ----- gamificação (qualidade conta na fase AUTO, com graça de asserção)
-        if self._qual_start:
-            if self._grace > 0:
-                self._grace -= 1
+        # ----- gamificação (qualidade conta quando a planta está EM BANDA, em qualquer modo)
+        in_band = (abs(e_l) <= BAND_L) and (abs(e_t) <= BAND_T)
+        if in_band:
+            if not self._qual_start:
+                self._qual_start = True
+                self._q_tick0 = self.tick
+                self.iae_l = self.iae_t = 0.0
+                self.var_u = 0.0; self._nq = 0; self._prev_uh = None
+            self.iae_l += abs(e_l) * DT            # %·s
+            self.iae_t += abs(e_t) * DT            # °C·s
+            # custo da oscilação do atuador (fiscal: "viscosidade variando")
+            if self._prev_uh is None:
+                self._prev_uh = u_heat_c
             else:
-                self.iae_l += abs(e_l) * DT            # %·s
-                self.iae_t += abs(e_t) * DT            # °C·s
-                # custo da oscilação do atuador (fiscal: "viscosidade variando")
-                if self._prev_uh is None:
-                    self._prev_uh = u_heat_c
-                else:
-                    self.var_u += abs(u_heat_c - self._prev_uh)
-                    self._prev_uh = u_heat_c
-                self._nq += 1
+                self.var_u += abs(u_heat_c - self._prev_uh)
+                self._prev_uh = u_heat_c
+            self._nq += 1
         fora = (abs(e_l) > 10.0) or (abs(e_t) > 15.0)
         # graça de partida: só estressa por fora-da-banda após o tick 25
         incr = 3.0 if (fora and self.tick > 25) else (-1.0 if not fora else 0.0)
@@ -323,7 +332,7 @@ class CSTR77:
 
         # ----- nudges do Dr. Gustav: lembra o aluno de mexer no PID se ficou parado em AUTO
         # (qualquer alteração nos PIDs via `pid` ou POP-007 desativa definitivamente)
-        if (self._qual_start and not self.pop007
+        if (self.mode == "AUTO" and not self.pop007
                 and self._nudge_stage < len(NUDGES)):
             tick_in_auto = self.tick - self._t_auto
             for i, (tg, msg) in enumerate(NUDGES):
@@ -354,7 +363,7 @@ class CSTR77:
     def qualidade(self):
         if not self._qual_start:
             return 100.0
-        t_run = max((self.tick - self._t_auto) * DT, 1.0)
+        t_run = max(self._nq * DT, 1.0)   # só ticks em banda (janela produtiva)
         avg_l = self.iae_l / t_run          # média |erro nível| em %
         avg_t = self.iae_t / t_run          # média |erro temperatura| em °C
         var_avg = self.var_u / max(self._nq, 1)   # média |Δu_heat| por tick
@@ -363,7 +372,7 @@ class CSTR77:
     def medias(self):
         if not self._qual_start:
             return (0.0, 0.0)
-        t_run = max((self.tick - self._t_auto) * DT, 1.0)
+        t_run = max(self._nq * DT, 1.0)
         return (self.iae_l / t_run, self.iae_t / t_run)
 
     def _imprime_status(self):
@@ -400,11 +409,9 @@ class CSTR77:
                 print(f"  → Aquecedor em {self.u_heat*100:.0f} %")
             elif cmd == "auto":
                 self.mode = "AUTO"
-                self._qual_start = True
                 self._t_auto = self.tick
-                self.iae_l = self.iae_t = 0.0
-                self.var_u = 0.0; self._nq = 0; self._prev_uh = None
-                self._grace = GRACE_AUTO
+                # nota: a QUALIDADE não zera aqui — ela começa no 1º momento em banda
+                # e acumula em qualquer modo (O manual também pontua; gate no _tick)
                 self.pid_l.reset(); self.pid_t.reset()
                 print("  → Modo AUTOMÁTICO (PID do Dr. Gustav). Sintonia agressiva; refine-a.")
                 print("    pid N <Kp> <Ki> <Kd>  e  pid T <Kp> <Ki> <Kd>")
@@ -458,7 +465,7 @@ class CSTR77:
             return
         qual = self.qualidade()
         avg_l, avg_t = self.medias()
-        titulo = titulo_final(qual, self.stress_max)
+        titulo = titulo_final(qual, self.stress_max, self._qual_start)
 
         base = os.path.dirname(os.path.abspath(__file__))
         nome_csv = os.path.join(base, "relatorio_cstr77.csv")
@@ -518,7 +525,7 @@ class CSTR77:
         print(f"  Erro médio   : nível {avg_l:.2f} %  |  temp {avg_t:.2f} °C")
         var_avg = self.var_u / max(self._nq, 1)
         print(f"  Oscilação    : mean|Δu_aquecedor| = {var_avg:.3f}  (pesa -{W_VAR*var_avg:.1f} na qualidade)")
-        q_str = f"{qual:.1f}/100" if self._qual_start else "— (não chegou à fase AUTO)"
+        q_str = f"{qual:.1f}/100" if self._qual_start else "— (não esteve em banda / sem operação válida)"
         print(f"  Qualidade    : {q_str}")
         print(f"  Estresse máx.: {self.stress_max:.0f}/100")
         print(f"  Eventos      : {', '.join(n for _, n in self.marcos_eventos) or 'nenhum'}")

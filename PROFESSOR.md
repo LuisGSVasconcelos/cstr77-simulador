@@ -109,13 +109,17 @@ relatorio
 
 - **Qualidade do lote** (forma a nota principal):
   `Q = 100 − 10·avg|Δnível|% − 5·avg|Δtemperatura|°C − 8·mean|Δu_aquecedor|`
-  contada **somente na fase AUTO**, com **janela de graça de 15 ticks** para o PID
-  assentar após a partida manual (o ponto de partida do manual não pune a nota).
-  O último termo penaliza a **oscilação do atuador** (o "fiscal reclama que a
-  viscosidade está variando"): um controlador que fica alternando aquecedor entre
-  +100%/−100% acumula `mean|Δu| ≈ 1–1.5` e perde 8–12 pontos — suficiente para
-  derrubar quem deixa a temperatura no default, mas **sem punir injustamente** quem
-  já estabilizou o nível (mantém o "crédito parcial").
+  contada a partir do **1º momento em que a planta entra em BANDA**
+  (nível ±10 % e temp ±15 °C), **em qualquer modo** — ou seja, a **operação manual
+  também pontua** (é o treino de operador). Enquanto o reator está fora da banda
+  (partida/enchimento), nada é contabilizado: uma partida lenta não derruba a nota
+  (isso fica para o *estresse*). Se a planta **nunca entrar em banda**, o relatório
+  mostra "—" e o título é **NÃO ESTABILIZOU** (sem pontuação "100" de graça).
+  O termo `8·mean|Δu_aquecedor|` penaliza a **oscilação do atuador** (o "fiscal
+  reclama que a viscosidade está variando"): um controlador que fica alternando o
+  aquecedor entre +100%/−100% acumula `mean|Δu| ≈ 1–1.5` e perde 8–12 pontos — o
+  suficiente para impedir o topo, mas **sem punir injustamente** quem já estabilizou
+  a outra variável (mantém o "crédito parcial").
 - **Placar final**:
 
 | Qualidade | Título | Leitura para a nota |
@@ -148,9 +152,10 @@ Validado em **6 sementes** (eventos aleatórios), mesma partida manual:
 
 | Cenário | Qualidade | Título | Comentário |
 |---|---|---|---|
-| **Sem sintonia** (default) | **34 – 46** | Almoxarifado | Offset no nível + temperatura oscilando (atuador bang-bang); não rejeita as perturbações |
-| **Só o nível afinado** (temp default) | **74 – 83** | Operador TITÃ aprovado | Nível 0.8–1 %; a penalidade de oscilação segura a nota em "Aprovado" — crédito parcial justo |
-| **Ambos afinados** (item 3) | **89 – 92** | Sucessor do Dr. Gustav | Assenta em 65 % / 110 °C com atuador suave e rejeita os eventos |
+| **Sem sintonia** (default) | **27 – 39** | Almoxarifado | Offset no nível + temperatura oscilando (atuador bang-bang); não rejeita as perturbações |
+| **Só o nível afinado** (temp default) | **77 – 78** | Operador TITÃ aprovado | Nível 0.8–1 %; a penalidade de oscilação segura a nota em "Aprovado" — crédito parcial justo |
+| **Ambos afinados** (item 3) | **85 – 87** | Sucessor do Dr. Gustav | Assenta em 65 % / 110 °C com atuador suave e rejeita os eventos |
+| **Manual competente** (segura em banda, sem AUTO) | pontua de verdade | Pode chegar perto do topo | A operação manual é **treinamento**: quem estabiliza e segura em banda ganha nota, e quem nunca entra em banda recebe "NÃO ESTABILIZOU" (não um "100" de graça) |
 
 Ou seja: **é preciso corrigir os DOIS loops** para chegar ao "Sucessor". Corrigir só o
 nível rende "Aprovado"; deixar tudo no default é "Almoxarifado". Não há "sorte de semente".
