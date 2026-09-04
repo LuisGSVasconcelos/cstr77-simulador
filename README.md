@@ -4,6 +4,10 @@ Simulador em Python de um **reator CSTR não isotérmico** (nível + concentraç
 controle **manual e automático (PID)**, perturbações aleatórias e **gamificação**, alinhado à atividade
 didática "Operação TITÃ: O Desafio do Reator CSTR-77" (ver `docs/Simulador_CSTR.pdf`).
 
+> 🚀 Deploy público (Render / HuggingFace Spaces): veja `DEPLOY.md`. Dica: o
+> **Streamlit Community Cloud** pode deixar o app **privado** mesmo marcando
+> "public and searchable" — os caminhos do `DEPLOY.md` dão URL pública garantida.
+
 Projetado para sala de aula (Eng. Química / Automação): o aluno assume a operação do reator, leva a
 planta do zero ao setpoint em modo manual e depois refina a sintonia PID para rejeitar perturbações,
 pontuando por **qualidade do lote (IAE)** e pelo **estresse do chefe (Dr. Gustav)**.
