@@ -11,6 +11,7 @@ Executar (na pasta do projeto):
 """
 import io
 import csv
+import secrets
 import contextlib
 
 import streamlit as st
@@ -24,14 +25,19 @@ st.set_page_config(page_title="OPERAÇÃO TITÃ — CSTR-77", layout="wide")
 S = st.session_state
 
 # ------------------------- estado persistente -------------------------
-if "sim" not in S:
-    with contextlib.redirect_stdout(io.StringIO()) as buf:
-        S.sim = sim.CSTR77(semente="streamlit")
+def nova_sessao():
+    """Gera uma semente aleatória única (anti-cópia) e o simulador da sessão."""
+    S.semente = secrets.token_hex(6)          # Run ID único por sessão
+    with contextlib.redirect_stdout(io.StringIO()):
+        S.sim = sim.CSTR77(semente=S.semente)
     S.log = []
     S.prev_modo = "MANUAL"
     S.n_ticks = 0
     S.base_l = tuple(S.sim.pid_l.ganhos)   # linha de base p/ rastrear mudanças (POP-007)
     S.base_t = tuple(S.sim.pid_t.ganhos)
+
+if "sim" not in S:
+    nova_sessao()
 
 # ------------------------- funções auxiliares -------------------------
 def avancar(n):
@@ -107,12 +113,9 @@ with st.sidebar:
     if st.button("⏭️ Avançar 30 ticks (300 s)", width="stretch", disabled=fim):
         avancar(30); st.rerun()
     st.caption("🛑 Fim de jogo = Dr. Gustav te rebaixou (estresse 100): simulação para.")
-    if st.button("♻️ Reiniciar simulação", width="stretch"):
-        with contextlib.redirect_stdout(io.StringIO()):
-            S.sim = sim.CSTR77(semente="streamlit")
-        S.log, S.prev_modo, S.n_ticks = [], "MANUAL", 0
-        S.base_l = tuple(S.sim.pid_l.ganhos)
-        S.base_t = tuple(S.sim.pid_t.ganhos)
+    st.caption(f"Run ID (semente): `{S.semente}` — único por sessão")
+    if st.button("♻️ Reiniciar simulação (novo cenário)", width="stretch"):
+        nova_sessao()
         st.rerun()
 
 # --------------------------- área principal ---------------------------
@@ -188,6 +191,7 @@ if st.button("🏁 Gerar relatório (qualidade + título)"):
     avg_l, avg_t = S.sim.medias()
     var_avg = S.sim.var_u / max(S.sim._nq, 1)
     st.success(f"**{titulo}**")
+    st.write(f"- **Run ID (semente):** `{S.semente}`")
     q_str = f"{qual:.1f}" if S.sim._qual_start else "— (não chegou à fase AUTO)"
     st.write(f"- Qualidade: **{q_str}**/100 (erro médio nível {avg_l:.2f} %, temp {avg_t:.2f} °C)")
     st.write(f"- Oscilação do atuador: mean|Δu_aquecedor| = **{var_avg:.3f}** "

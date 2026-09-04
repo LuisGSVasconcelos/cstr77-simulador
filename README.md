@@ -47,6 +47,11 @@ botões de avanço (1 / 10 / 30 ticks), medidor de estresse, gráficos interativ
 com título e download em CSV. Sem loops bloqueantes — cada interação avança a
 simulação e re-renderiza.
 
+> **Anti-cópia**: cada sessão recebe uma **semente aleatória única (Run ID)** — os
+> eventos e o timing diferem de aluno para aluno, e o "Reiniciar" sorteia outro
+> cenário. O Run ID aparece no painel e no relatório, permitindo auditar/regerar
+> qualquer execução.
+
 ## Comandos do jogo
 
 | Comando                 | Ação                                   |

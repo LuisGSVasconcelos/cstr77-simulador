@@ -136,6 +136,9 @@ relatorio
   (rastreabilidade 21 CFR Part 11). "Alterações = 0" é um forte indício de que ele
   não sintonizou. No painel Streamlit, **cada alteração de sintonia também é
   registrada** (antes→depois) — mexe no slider, entra no POP-007.
+- **Anti-cópia (Streamlit)**: cada sessão tem **semente aleatória (Run ID)** — evento
+  e timing diferem por aluno, e "Reiniciar" sorteia outro cenário. Para auditar:
+  dois alunos com **mesmo Run ID** ou **timing de eventos idêntico** no CSV = cópia.
 
 ---
 
