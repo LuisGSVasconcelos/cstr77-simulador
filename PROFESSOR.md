@@ -19,6 +19,13 @@ uma competência:
 | 3. Sexta-feira louca | Eventos aleatórios | Robustez: rejeitar perturbações sem sair da banda |
 | 4. Volta do chefe | Relatório + justificativa | Comunicar escolhas e rastrear alterações (POP-007) |
 
+> **Nudges do Dr. Gustav (Fase 2)**: se o aluno entra em AUTO e **fica 60/120/200
+> ticks sem mexer no PID**, o simulador dispara 3 chamadas telefônicas do chefe
+> ("Mexa no PID!", "Olha a oscilação do aquecedor — precisa de Kd!", "Se não mexer,
+> vai pro almoxarifado"). Qualquer alteração de sintonia (CLI ou painel Streamlit)
+> silencia permanentemente os avisos. Use isso como ferramenta pedagógica: o aluno
+> **tem que tocar no PID** para chegar ao Sucessor.
+
 ---
 
 ## 2. Como reproduzir o "gabarito" (resposta certa)

@@ -37,6 +37,16 @@ T_MAX_TICKS = 400      # ~67 min simulados
 GRACE_AUTO = 15        # ticks de AUTO sem contar IAE (deixa o PID assentar após o manual)
 W_VAR = 8              # peso da oscilação do atuador (mean|Δu_heat|) na qualidade
 
+# Nudges do Dr. Gustav: lembra o aluno de mexer no PID se ficou parado em AUTO
+NUDGES = [
+    (60,  "📞 Gustav: 'Tá olhando o quê, novato? Mexa nos PIDs! "
+              "Use \033[1mpid n <Kp> <Ki> <Kd>\033[0m e \033[1mpid t ...\033[0m.'"),
+    (120, "📞 Gustav: '2 minutos e nada? Olha a oscilação do aquecedor — "
+              "precisa de Kd. Vai!'"),
+    (200, "📞 Gustav (irritado): 'Se você não mexer no PID, vai pro "
+              "almoxarifado. Mãos à obra!'"),
+]
+
 # ----------------------- Parâmetros da planta -----------------------
 P = {
     "V_max":  10.0,     # L
@@ -178,6 +188,7 @@ class CSTR77:
         self._flag_crit = False
         self._flag_overflow = False
         self._flag_empty = False
+        self._nudge_stage = 0                 # 0/1/2/3 = quantos avisos do Gustav já saíram
         self.pop007 = []                         # log de alterações de PID
         self.marcos_eventos = []                 # (tick, nome)
         self.hist = {k: [] for k in
@@ -195,7 +206,9 @@ class CSTR77:
         print(f"  Setpoint TEMP  : {P['sp_temp']:.0f} °C")
         print("Você tem ~10 min (60 ticks) para estabilizar em MANUAL,")
         print("ou o alarme de 'ALTA VARIAÇÃO' vai despertar o gerente.")
-        print("Quando estiver estável, mude para AUTO e refine o PID.")
+        print("Quando estiver estável, mude para AUTO e refine o PID")
+        print("(a sintonia do Dr. Gustav é ruim de propósito — o jogo te força")
+        print(" a achar os ganhos certos).")
         print("Cuidado com variações na linha... o filtro está sendo trocado.")
         print("Comandos: n <0-100> | q <0-100> | r <0-100> | auto | manual |")
         print("          pid [N|T <Kp> <Ki> <Kd>] | pop | esp [n] | status |")
@@ -303,6 +316,16 @@ class CSTR77:
                 print("  🔥 CRÍTICO: degradação do produto (T > 130 °C)!")
         elif self._flag_crit and self.T < 125:
             self._flag_crit = False
+
+        # ----- nudges do Dr. Gustav: lembra o aluno de mexer no PID se ficou parado em AUTO
+        # (qualquer alteração nos PIDs via `pid` ou POP-007 desativa definitivamente)
+        if (self._qual_start and not self.pop007
+                and self._nudge_stage < len(NUDGES)):
+            tick_in_auto = self.tick - self._t_auto
+            for i, (tg, msg) in enumerate(NUDGES):
+                if self._nudge_stage < i + 1 and tick_in_auto >= tg:
+                    self._nudge_stage = i + 1
+                    print("  " + msg)
 
         # ----- histórico
         t = self.tick * DT

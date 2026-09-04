@@ -131,6 +131,14 @@ m5.metric("Título (atual)", "—")
 
 st.progress(int(S.sim.stress), text=f"Estresse do Dr. Gustav: {S.sim.stress:.0f}/100")
 
+# ---- Nudges do Dr. Gustav (só em AUTO, se o aluno não tocou nos PIDs)
+if S.sim._qual_start and not S.sim.pop007 and S.sim._nudge_stage < len(sim.NUDGES):
+    tick_auto = S.sim.tick - S.sim._t_auto
+    for i, (tg, _msg) in enumerate(sim.NUDGES):
+        if S.sim._nudge_stage < i + 1 and tick_auto >= tg:
+            S.sim._nudge_stage = i + 1
+            st.warning(f"📞 **Gustav (t={tg} s de AUTO):** {_msg.split(': ', 1)[-1]}")
+
 col_left, col_right = st.columns([2, 1])
 with col_right:
     st.subheader("📜 Histórico de eventos/alarmes")
