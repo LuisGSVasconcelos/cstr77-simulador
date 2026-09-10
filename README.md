@@ -78,7 +78,7 @@ simulação e re-renderiza.
 1. **Encha** com a saída fechada: `q 0`, `n 95`, `r 70`; `esp 28`
 2. Abra a saída e equilibre: `q 55`, `n 55`, `r 90`; `esp 6`
 3. `auto` → liga os PID (sintonia do Dr. Gustav, **ruim de propósito**)
-4. Retune: `pid n 1.5 0.05 0.1` e `pid t 0.20 0.03 0.2`
+4. Retune: `pid n 0 0 0` e `pid t 0 0 0`
 5. `esp 20` → deixa surgir os eventos surpresa
 6. `relatorio` → entrega o relatório
 
