@@ -56,6 +56,29 @@ simulação e re-renderiza.
 > cenário. O Run ID aparece no painel e no relatório, permitindo auditar/regerar
 > qualquer execução.
 
+## Versão Streamlit — identificação de funções de transferência
+
+Segundo app, `identificacao.py`, para a aula de **identificação de processos**.
+Ele roda experimentos em malha aberta no próprio simulador e entrega duas
+colunas de dados (entrada `u` e saída `y`) para o aluno ajustar um modelo:
+
+```bash
+streamlit run identificacao.py
+```
+
+- **Três experimentos prontos**: degrau no aquecedor → temperatura; pulso na
+  válvula de entrada → nível; pulso na válvula de saída → nível.
+- **Fonte alternativa**: upload de um CSV do simulador, escolhendo as colunas
+  de entrada e de saída.
+- **Estruturas**: 1ª ordem, 2ª ordem e integrativo, cada uma podendo receber
+  tempo morto (θ) e resposta inversa (τa).
+- **Laço de aprendizagem**: o aluno digita os parâmetros, vê na hora FIT, R²,
+  RMSE e IAE, compara dados × modelo e erro no tempo, e recebe pistas
+  (ganho aparente, τ, sobressinal, θ) e um diagnóstico do tipo "aumente τ".
+- **Gabarito** escondido em um expander, com o melhor ajuste da estrutura
+  escolhida (varredura em grade + ganho por mínimos quadrados).
+- Exporta o experimento e a comparação em CSV.
+
 ## Comandos do jogo
 
 | Comando                 | Ação                                   |

@@ -9,3 +9,6 @@ relatorio_cstr77.csv
 
 # Scripts auxiliares locais
 _*.py
+# saidas de depuracao
+_*.out
+_out.txt

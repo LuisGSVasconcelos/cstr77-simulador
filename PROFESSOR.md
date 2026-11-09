@@ -207,3 +207,86 @@ balanço **molar** `N = C·V` (robusto p/ V→0).
   e o que aconteceria com só um aquecedor — conecta com sistemas reais.
 - Usar o **estresse** como "custo operacional" e pedir uma análise custo-benefício
   entre assentar rápido (mais agressivo, mais estresse) e suave (mais devagar).
+
+---
+
+## 10. App de identificação (`identificacao.py`) — gabarito
+
+Este app é a **segunda atividade**: em vez de sintonizar, o aluno faz *identificação*
+de função de transferência a partir de dados do próprio simulador (experimentos prontos
+ou CSV exportado).
+
+Rode com:
+
+```bash
+streamlit run identificacao.py
+```
+
+### 10.1 O que cada experimento é, de fato
+
+| Experimento | Degrau aplicado | Variável observada | Estrutura verdadeira |
+|---|---|---|---|
+| `temp` | `u_heat` 45 % → 55 % (passo, 3 000 s de patamar) | Temperatura (°C) | 1ª ordem pura, **sem** atraso |
+| `nivel_in` | pulso na válvula de entrada (`u_in`) | Nível (%) | **Integrador** |
+| `nivel_out` | pulso na válvula de saída (`u_out`) | Nível (%) | **Integrador**, ganho negativo |
+
+O degrau de temperatura foi limitado a **45 → 55 %** de propósito: em 62 % o reator
+travava em 126,8 °C (limite do modelo) e não formava patamar — sem patamar não há
+como extrair K nem τ.
+
+### 10.2 Gabarito numérico (medido, ruído do simulador ligado)
+
+| Experimento | Estrutura | Parâmetros corretos | FIT do gabarito | FIT com o *default* do app |
+|---|---|---|---|---|
+| `temp` | 1ª ordem | K = 96,5 · τ = 417 s · θ = 0 | **93,8 %** | 92,9 % |
+| `temp` | 2ª ordem | ωn = 0,0071 · ζ = 1,38 · θ = 10 s | 91,2 % | 38,1 % |
+| `nivel_in` | Integrativo | Ki = 0,200 · θ = 0 | **100,0 %** | 94,7 % |
+| `nivel_in` | 1ª ordem (errada) | K = 801 · τ = 3 528 s · θ = 30 s | 81,9 % | **−131,5 %** |
+| `nivel_out` | Integrativo | Ki = −0,200 · θ = 0 | **100,0 %** | 94,7 % |
+
+Leitura esperada em sala:
+
+- **Nível → integrador** fecha em 100 %. É a assinatura de um tanque: degrau constante
+  na vazão dá rampa no nível, e é isso que a estrutura integrativa reproduz.
+- **Forçar 1ª ordem no nível** despenca (FIT negativo no default). O aluno sente na
+  pele por que a estrutura errada não é só "pior": ela pode não explicar nada.
+- **Temperatura → 1ª ordem** já vem perto do ótimo com os parâmetros de partida;
+  o ganho didático aqui é o **τ** (≈ 400 s), que explica por que o loop térmico é lento.
+- **2ª ordem na temperatura** só empata com ζ > 1 (dois polos reais), ou seja: os dados
+  não sustentam um comportamento subamortecido. Bom momento para discutir
+  **sobreparametrização** — mais parâmetros não significa melhor modelo.
+
+### 10.3 Regras do gabarito automático (botão "melhor ajuste")
+
+O botão **não sobrescreve** os parâmetros digitados pelo aluno — ele calcula o melhor
+ajuste e guarda em `_best` (para comparação e nota). Se sobrescrevesse, o exercício se
+resolveria sozinho.
+
+O `Ki` do integrador é obtido pela **área da entrada**, `Ki = Δy / ∫(u − u0) dt`, e não
+por `Δy / (Δu · Δt)`: a segunda forma devolvia Ki ≈ 0,067 em vez de 0,2 e fazia o modelo
+sair praticamente plano (FIT −131 % no nível).
+
+### 10.4 CSV aceito
+
+Duas ou três colunas numéricas, separador `,` ou `;`, decimal `.` ou `,`:
+
+- se houver coluna de tempo (`t`, `t_s`, `tempo`, `time`, `timestamp`), ela é o eixo x;
+- linhas com tempo ausente são descartadas e linhas fora de ordem são reordenadas;
+- sem coluna de tempo, o app usa `t = 10 s × índice` e deixa o aluno escolher as colunas
+  de entrada e saída na própria interface.
+
+Cuidado ensinado de propósito: um arquivo com colunas `u_heat` e `T` **sem** coluna de
+tempo não pode usar `T` como tempo — o app exige que sobrem duas colunas de sinal e cai
+no eixo sintético. Vale mostrar esse caso para falar de **validação de dados**. 
+
+O caminho do CSV foi conferido contra o caminho nativo: para o degrau de temperatura,
+os dois chegam a K = 94,87 e τ = 400 s, idênticos.
+
+### 10.5 Como pontuar
+
+- FIT ≥ 90 % na estrutura correta: identificação validada.
+- Escolher a estrutura certa importa mais que acertar o terceiro decimal.
+- Resposta aceitável para "por que a 2ª ordem não ganha?": porque ζ > 1 apenas duplica
+  o polo que a 1ª ordem já captura.
+- Relação com a atividade de sintonia: τ ≈ 400 s na temperatura justifica um `Kp` de
+  aquecedor pequeno e `Ki` paciente — quem identificou primeiro sintoniza em menos tentativas.
