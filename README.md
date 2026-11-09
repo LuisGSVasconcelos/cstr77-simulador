@@ -74,9 +74,16 @@ streamlit run identificacao.py
   tempo morto (θ) e resposta inversa (τa).
 - **Laço de aprendizagem**: o aluno digita os parâmetros, vê na hora FIT, R²,
   RMSE e IAE, compara dados × modelo e erro no tempo, e recebe pistas
-  (ganho aparente, τ, sobressinal, θ) e um diagnóstico do tipo "aumente τ".
-- **Gabarito** escondido em um expander, com o melhor ajuste da estrutura
-  escolhida (varredura em grade + ganho por mínimos quadrados).
+  **qualitativas** ("aumente τ", "reduza o ganho") — a direção, não o valor.
+- **Começa sorteado**: os parâmetros iniciais são **aleatórios por sessão**
+  (±0,7 década em torno da ordem de grandeza do experimento, mas nunca a menos de ~1,8× da resposta — a faixa "quase certo" é proibida) e ficam no
+  `session_state`, então não são re-sorteados a cada rerun. O botão
+  "🎲 Sortear outros valores" troca o ponto de partida. Dois alunos não veem
+  os mesmos números — não adianta copiar o do colega, e o FIT inicial é sempre negativo.
+- **Modo professor** (checkbox na barra lateral, desligado por padrão): libera
+  as pistas numéricas (K, τ, ζ, θ) e o gabarito com o ajuste automático
+  (varredura em grade + ganho por mínimos quadrados). Com o modo desligado o
+  expander do gabarito mostra apenas um aviso de bloqueio.
 - Exporta o experimento e a comparação em CSV.
 
 ## Comandos do jogo

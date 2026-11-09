@@ -290,3 +290,46 @@ os dois chegam a K = 94,87 e τ = 400 s, idênticos.
   o polo que a 1ª ordem já captura.
 - Relação com a atividade de sintonia: τ ≈ 400 s na temperatura justifica um `Kp` de
   aquecedor pequeno e `Ki` paciente — quem identificou primeiro sintoniza em menos tentativas.
+
+### 10.6 Ponto de partida sorteado e modo professor
+
+O app **não abre mais com os parâmetros estimados**. Abrir com `K ≈ 96,5` e `τ ≈ 417 s`
+entregava a resposta antes do aluno tentar — o exercício virava conferir números.
+
+O que mudou:
+
+| Item | Comportamento |
+|------|---------------|
+| Valores iniciais | sorteados por sessão, na ordem de grandeza do experimento, **mas nunca perto da resposta**: o fator é 0,2–0,55× ou 1,8–5,0× |
+| τ inicial | 0,2–0,56× ou 1,8–5,0× o τ do experimento |
+| θ inicial | sorteado em {0, 5, 10, 20, 40} s |
+| τa inicial | 5 % a 40 % do τ do experimento |
+| ζ inicial | 0,15 a 1,60 |
+| Persistência | ficam em `session_state` — **não** são re-sorteados a cada rerun |
+| Botão "Sortear outros valores" | troca o ponto de partida |
+| Troca de experimento/estrutura | sorteia de novo (é outro problema) |
+| Pistas | só a **direção** ("aumente o ganho", "reduza τ"), sem números |
+| Modo professor (checkbox, desligado) | libera pistas numéricas (K, τ, ζ, θ) e o gabarito automático |
+
+A faixa "quase certo" é proibida de propósito. Medido com 200 sorteios por caso:
+
+| Experimento | Estrutura | FIT inicial: pior | mediana | melhor |
+|---|---|---|---|---|
+| `temp` | 1ª ordem | −1597 % | −234 % | −26 % |
+| `temp` | 2ª ordem | −1633 % | −215 % | −88 % |
+| `nivel_in` | integrativo | −1112 % | −170 % | −48 % |
+| `nivel_out` | integrativo | −1089 % | −169 % | −41 % |
+
+Ou seja: o aluno **sempre** começa feio (FIT negativo, modelo deslocado ou fora de
+escala) e o painel diz apenas para que lado puxar.
+
+Consequências para a aula:
+
+- **Não compare o FIT inicial entre alunos** — cada um parte de um ponto diferente
+  (o inicial costuma ficar entre −100 % e −900 %). Compare o FIT **final**, o número de
+  tentativas e a justificativa de cada parâmetro.
+- O primeiro passo do aluno deixa de ser "ler o valor" e passa a ser **diagnosticar**:
+  o modelo anda mais ou menos que os dados? reage antes ou depois? oscila ou não?
+- Quem quiser o gabarito numérico em aula liga o **modo professor**; a turma não vê.
+- Como o sorteio é por sessão, dois alunos lado a lado discutem **procedimento**, não
+  valores — é o mesmo princípio da semente por sessão do simulador.

@@ -20,6 +20,7 @@ import contextlib
 import csv
 import io
 import math
+import random
 
 import numpy as np
 import plotly.graph_objects as go
@@ -508,6 +509,45 @@ def _num(valor, padrao):
         return padrao
 
 
+def _sorteio_inicial(feat):
+    """Valores iniciais ALEATÓRIOS — de propósito, longe da resposta.
+
+    A ordem de grandeza vem das features do experimento (para o aluno não
+    começar em 10^6 quando a resposta é 0,2), mas o sorteio fica SEMPRE a pelo
+    menos ~1,8x de distância do valor correto: a faixa "quase certo" é
+    proibida, senão de vez em quando o aluno abriria o app já com FIT alto.
+    O sorteio é por sessão: dois alunos não veem os mesmos números, então não
+    adianta copiar o procedimento do colega.
+    """
+    rng = random.Random()
+    k_ref = _num(feat.get("K"), 1.0)
+    ki_ref = _num(feat.get("Ki"), 0.01)
+    tau_ref = max(0.1, abs(_num(feat.get("tau"), 100.0)))
+
+    def _longe(baixo, fino_baixo, fino_alto, alto):
+        """Fator log-uniforme em [baixo, fino_baixo] ou [fino_alto, alto]."""
+        if rng.random() < 0.5:
+            return 10 ** rng.uniform(math.log10(baixo), math.log10(fino_baixo))
+        return 10 ** rng.uniform(math.log10(fino_alto), math.log10(alto))
+
+    def _escala(valor, fator):
+        base = abs(valor) if abs(valor) > 1e-12 else 1.0
+        return base * fator
+
+    fator_k = _longe(0.2, 0.55, 1.8, 5.0)      # 0,2–0,55x ou 1,8–5,0x
+    fator_tau = _longe(0.2, 0.56, 1.78, 5.0)   # ±0,25 a ±0,7 década
+
+    return {
+        "K": math.copysign(_escala(k_ref, fator_k), k_ref or 1.0),
+        "tau": tau_ref * fator_tau,
+        "wn": 1.0 / (tau_ref * fator_tau),
+        "zeta": rng.uniform(0.15, 1.60),
+        "Ki": math.copysign(_escala(ki_ref, fator_k), ki_ref or 1.0),
+        "theta": rng.choice([0.0, 0.0, 5.0, 10.0, 20.0, 40.0]),
+        "taua": tau_ref * rng.uniform(0.05, 0.40),
+    }
+
+
 def main():
     st.set_page_config(
         page_title="Identificação de FT — CSTR-77",
@@ -621,53 +661,74 @@ def main():
         for k in [k for k in st.session_state if k.startswith("p_")]:
             st.session_state.pop(k, None)
 
+    # valores iniciais SORTEADOS (nunca a resposta): o aluno tem de encontrar
+    chave_sorteio = (data_id, st.session_state.get("_draw", 0))
+    if st.session_state.get("_sorteio_id") != chave_sorteio:
+        st.session_state["_sorteio_id"] = chave_sorteio
+        sorteio = _sorteio_inicial(feat)
+        st.session_state["p_K"] = float(sorteio["K"])
+        st.session_state["p_tau"] = float(max(0.1, sorteio["tau"]))
+        st.session_state["p_wn"] = float(max(1e-4, sorteio["wn"]))
+        st.session_state["p_zeta"] = float(max(0.05, sorteio["zeta"]))
+        st.session_state["p_Ki"] = float(sorteio["Ki"])
+        st.session_state["p_theta"] = float(max(0.0, sorteio["theta"]))
+        st.session_state["p_taua"] = float(max(0.0, sorteio["taua"]))
+
     with st.sidebar:
         st.header("4 · Parâmetros")
         dyn = {}
         if chave_mod == "primeira":
             dyn["K"] = st.number_input(
-                "Ganho K (unid. y / unid. u)",
-                value=float(_num(feat["K"], 1.0)), format="%.4f", key="p_K",
+                "Ganho K (unid. y / unid. u)", format="%.4f", key="p_K",
             )
             dyn["tau"] = st.number_input(
-                "Constante de tempo τ (s)",
-                min_value=0.1, value=float(max(0.1, _num(feat["tau"], 100.0))),
+                "Constante de tempo τ (s)", min_value=0.1,
                 step=5.0, format="%.1f", key="p_tau",
             )
         elif chave_mod == "segunda":
             dyn["K"] = st.number_input(
-                "Ganho K (unid. y / unid. u)",
-                value=float(_num(feat["K"], 1.0)), format="%.4f", key="p_K",
+                "Ganho K (unid. y / unid. u)", format="%.4f", key="p_K",
             )
-            wn_pad = 1.0 / max(_num(feat["tau"], 100.0), 1.0)
             dyn["wn"] = st.number_input(
                 "Frequência natural ωn (rad/s)",
-                min_value=1e-4, value=float(max(1e-4, wn_pad)),
-                step=0.0005, format="%.5f", key="p_wn",
+                min_value=1e-4, step=0.0005, format="%.5f", key="p_wn",
             )
             dyn["zeta"] = st.number_input(
                 "Amortecimento ζ (–)",
-                min_value=0.05, value=float(_num(feat["zeta"], 0.7)),
-                step=0.05, format="%.2f", key="p_zeta",
+                min_value=0.05, step=0.05, format="%.2f", key="p_zeta",
             )
         else:
             dyn["K"] = st.number_input(
                 "Ganho do integrador Ki (unid. y / (s·unid. u))",
-                value=float(_num(feat["Ki"], 0.01)), format="%.5f", key="p_Ki",
+                format="%.5f", key="p_Ki",
             )
 
         theta = st.number_input(
             "Tempo morto θ (s)", min_value=0.0,
-            value=float(max(0.0, _num(feat["theta"], 0.0))),
             step=5.0, format="%.1f", key="p_theta",
             disabled=not com_morto,
         ) if com_morto else 0.0
 
         tau_a = st.number_input(
             "Constante da resposta inversa τa (s)", min_value=0.0,
-            value=float(max(0.0, 0.15 * _num(feat["tau"], 100.0))),
             step=5.0, format="%.1f", key="p_taua",
         ) if com_inv else 0.0
+
+        if st.button("🎲 Sortear outros valores"):
+            st.session_state["_draw"] = st.session_state.get("_draw", 0) + 1
+            st.rerun()
+        st.caption(
+            "🎲 **Os valores acima são sorteados** — não são a resposta. "
+            "Ajuste-os até o modelo aderir aos dados; use o painel de pistas "
+            "para saber em que direção mexer."
+        )
+        modo_prof = st.checkbox(
+            "Modo professor (mostrar pistas numéricas e gabarito)",
+            value=False,
+            help="Ligado, o app volta a mostrar os valores estimados dos "
+                 "parâmetros e o ajuste automático. Deixe desligado durante a "
+                 "atividade: o aluno deve encontrar os valores.",
+        )
 
     # ---------------------------------------------------------------- modelo
     y0, yhat, _ = montar_saida(t, u, y, i0, chave_mod, dyn, theta, tau_a)
@@ -725,65 +786,103 @@ def main():
         t63_dados = tempo_63(t, y, i0)
         t63_modelo = tempo_63(t, yhat, i0)
         if np.isfinite(t63_dados) and np.isfinite(t63_modelo):
-            if t63_modelo < 0.85 * t63_dados:
-                st.write(
-                    f"⏱️ O modelo chega a 63 % em **{t63_modelo:.0f} s**; os dados em "
-                    f"**{t63_dados:.0f} s**. O modelo está rápido demais → **aumente τ**."
-                )
-            elif t63_modelo > 1.15 * t63_dados:
-                st.write(
-                    f"⏱️ O modelo chega a 63 % em **{t63_modelo:.0f} s**; os dados em "
-                    f"**{t63_dados:.0f} s**. O modelo está lento demais → **reduza τ**."
-                )
+            rapido = t63_modelo < 0.85 * t63_dados
+            lento = t63_modelo > 1.15 * t63_dados
+            if rapido or lento:
+                if modo_prof:
+                    st.write(
+                        f"⏱️ O modelo chega a 63 % em **{t63_modelo:.0f} s**; os dados em "
+                        f"**{t63_dados:.0f} s**. O modelo está "
+                        f"{'rápido' if rapido else 'lento'} demais → "
+                        f"**{'aumente' if rapido else 'reduza'} τ**."
+                    )
+                else:
+                    st.write(
+                        "⏱️ Pela velocidade da resposta, o modelo "
+                        f"{'chega cedo demais' if rapido else 'demora demais'} ao regime "
+                        f"→ **{'aumente' if rapido else 'reduza'} τ**."
+                    )
 
     with col_b:
         with st.expander("🧭 Pistas dos dados", expanded=True):
-            if chave_mod == "integrativo":
-                st.write(f"Ganho aparente Ki ≈ **{feat['Ki']:.4g}** unid./(s·unid. u)")
-                st.write(f"Variação total: **{feat['dy']:+.3g}** em {t[-1] - feat['t0']:.0f} s")
+            if modo_prof:
+                if chave_mod == "integrativo":
+                    st.write(f"Ganho aparente Ki ≈ **{feat['Ki']:.4g}** unid./(s·unid. u)")
+                    st.write(f"Variação total: **{feat['dy']:+.3g}** em {t[-1] - feat['t0']:.0f} s")
+                else:
+                    st.write(f"Ganho aparente K ≈ **{feat['K']:.4g}**")
+                    st.write(f"Constante de tempo aparente τ ≈ **{feat['tau']:.0f} s**")
+                    st.write(f"Sobressinal ≈ **{feat['sobressinal']:.1f} %**"
+                             + (f" → ζ ≈ {feat['zeta']:.2f}" if np.isfinite(feat["zeta"]) else ""))
+                st.write(f"Tempo morto aparente θ ≈ **{feat['theta']:.0f} s**")
             else:
-                st.write(f"Ganho aparente K ≈ **{feat['K']:.4g}**")
-                st.write(f"Constante de tempo aparente τ ≈ **{feat['tau']:.0f} s**")
-                st.write(f"Sobressinal ≈ **{feat['sobressinal']:.1f} %**"
-                         + (f" → ζ ≈ {feat['zeta']:.2f}" if np.isfinite(feat["zeta"]) else ""))
-            st.write(f"Tempo morto aparente θ ≈ **{feat['theta']:.0f} s**")
+                # só a DIREÇÃO da correção — os valores o aluno tem de achar
+                dy_d = y[-1] - y[i0]
+                dy_m = yhat[-1] - y[i0]
+                if abs(dy_m - dy_d) > 0.10 * max(abs(dy_d), 1e-9):
+                    if np.sign(dy_m) != np.sign(dy_d):
+                        st.write("🔁 O modelo vai para o **lado oposto** dos dados → "
+                                 "o sinal do ganho está trocado.")
+                    elif abs(dy_m) < abs(dy_d):
+                        st.write("📈 O modelo anda **menos** que os dados → "
+                                 "**aumente o ganho**.")
+                    else:
+                        st.write("📉 O modelo anda **mais** que os dados → "
+                                 "**reduza o ganho**.")
+                else:
+                    st.write("✅ A variação total do modelo bate com a dos dados: "
+                             "o ganho está no caminho certo.")
+                if chave_mod == "segunda":
+                    st.write("〰️ Oscilou nos dados e não no modelo → **reduza ζ**; "
+                             "o contrário → **aumente ζ**.")
+                st.write("⏱️ Modelo reagindo **antes** dos dados → **aumente θ**; "
+                         "**depois** → **reduza θ**.")
+                st.caption("As pistas dão só a direção. Os valores numéricos ficam "
+                           "no modo professor.")
 
     # --------------------------------------------------------------- gabarito
     with st.expander("🎓 Gabarito — ajuste automático"):
-        st.caption(
-            "O app varre as estruturas e resolve o ganho por mínimos quadrados. "
-            "Use para conferir a resposta do aluno."
-        )
-        if st.button("Calcular melhor ajuste desta estrutura"):
-            with st.spinner("Ajustando..."):
-                best = auto_ajuste(t, u, y, i0, chave_mod, com_morto, com_inv)
-            st.session_state["_best"] = best
-            st.session_state["_best_id"] = data_id
-
-        best = st.session_state.get("_best")
-        if best and st.session_state.get("_best_id") == data_id:
-            st.write(
-                f"**K = {best['K']:.4g}** · θ = {best['theta']:.0f} s · τa = {best['tau_a']:.0f} s"
+        if not modo_prof:
+            st.info(
+                "🔒 **Modo avaliação.** Aqui ficaria o ajuste automático, que "
+                "entrega a resposta. Ligue o **modo professor** na barra "
+                "lateral para usá-lo."
             )
-            if "tau" in best:
-                st.write(f"τ = {best['tau']:.1f} s")
-            if "wn" in best:
-                st.write(f"ωn = {best['wn']:.5f} rad/s · ζ = {best['zeta']:.2f}")
-            st.write(f"FIT = {best['fit']:.1f} % · R² = {best['r2']:.3f} · RMSE = {best['rmse']:.3g}")
-
-            _, yhat_best, _ = montar_saida(
-                t, u, y, i0, chave_mod,
-                {k: best[k] for k in ("K", "tau", "wn", "zeta") if k in best},
-                best["theta"], best["tau_a"],
+        else:
+            st.caption(
+                "O app varre as estruturas e resolve o ganho por mínimos quadrados. "
+                "Use para conferir a resposta do aluno."
             )
-            fig2 = go.Figure()
-            fig2.add_trace(go.Scatter(x=t, y=y, name="dados", line=dict(color="#f2f2f2")))
-            fig2.add_trace(go.Scatter(x=t, y=yhat_best, name="gabarito",
-                                      line=dict(color="#4caf50", dash="dash")))
-            fig2.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
-                               hovermode="x unified")
-            st.plotly_chart(fig2, use_container_width=True)
-            st.session_state["_best_id"] = data_id
+            if st.button("Calcular melhor ajuste desta estrutura"):
+                with st.spinner("Ajustando..."):
+                    best = auto_ajuste(t, u, y, i0, chave_mod, com_morto, com_inv)
+                st.session_state["_best"] = best
+                st.session_state["_best_id"] = data_id
+
+            best = st.session_state.get("_best")
+            if best and st.session_state.get("_best_id") == data_id:
+                st.write(
+                    f"**K = {best['K']:.4g}** · θ = {best['theta']:.0f} s · τa = {best['tau_a']:.0f} s"
+                )
+                if "tau" in best:
+                    st.write(f"τ = {best['tau']:.1f} s")
+                if "wn" in best:
+                    st.write(f"ωn = {best['wn']:.5f} rad/s · ζ = {best['zeta']:.2f}")
+                st.write(f"FIT = {best['fit']:.1f} % · R² = {best['r2']:.3f} · RMSE = {best['rmse']:.3g}")
+
+                _, yhat_best, _ = montar_saida(
+                    t, u, y, i0, chave_mod,
+                    {k: best[k] for k in ("K", "tau", "wn", "zeta") if k in best},
+                    best["theta"], best["tau_a"],
+                )
+                fig2 = go.Figure()
+                fig2.add_trace(go.Scatter(x=t, y=y, name="dados", line=dict(color="#f2f2f2")))
+                fig2.add_trace(go.Scatter(x=t, y=yhat_best, name="gabarito",
+                                          line=dict(color="#4caf50", dash="dash")))
+                fig2.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
+                                   hovermode="x unified")
+                st.plotly_chart(fig2, use_container_width=True)
+                st.session_state["_best_id"] = data_id
 
     # ------------------------------------------------------------------ CSV
     st.divider()
